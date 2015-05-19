@@ -74,7 +74,7 @@ public class JenkinsScheduler implements Scheduler {
 
   private static final String SLAVE_COMMAND_FORMAT =
       "java -DHUDSON_HOME=jenkins -server -Xmx%dm %s -jar ${MESOS_SANDBOX-.}/slave.jar %s %s -jnlpUrl %s";
-  private static final String JNLP_SECRET_FORMAT = "-secret %s";
+  private static final String JNLP_SECRET_FORMAT = "%s";
 
   private Queue<Request> requests;
   private Map<TaskID, Result> results;
@@ -408,13 +408,7 @@ public class JenkinsScheduler implements Scheduler {
                 joinPaths(jenkinsMaster, SLAVE_JAR_URI_SUFFIX));
 
     CommandInfo.Builder commandBuilder = CommandInfo.newBuilder();
-    commandBuilder.setValue(
-            String.format(SLAVE_COMMAND_FORMAT,
-                    request.request.mem,
-                    request.request.slaveInfo.getJvmArgs(),
-                    request.request.slaveInfo.getJnlpArgs(),
-                    getJnlpSecret(request.request.slave.name),
-                    getJnlpUrl(request.request.slave.name)))
+    commandBuilder.setValue("supervisord")
         .addUris(
                 CommandInfo.URI.newBuilder().setValue(
                         joinPaths(jenkinsMaster, SLAVE_JAR_URI_SUFFIX)).setExecutable(false).setExtract(false));
@@ -478,7 +472,7 @@ public class JenkinsScheduler implements Scheduler {
           LOGGER.info("Launching in Docker Mode:" + containerInfo.getDockerImage());
           DockerInfo.Builder dockerInfoBuilder = DockerInfo.newBuilder() //
               .setImage(containerInfo.getDockerImage());
-          
+
           if (containerInfo.getParameters() != null) {
             for (MesosSlaveInfo.Parameter parameter : containerInfo.getParameters()) {
               LOGGER.info("Adding Docker parameter '" + parameter.getKey() + ":" + parameter.getValue() + "'");
@@ -526,6 +520,13 @@ public class JenkinsScheduler implements Scheduler {
           } else {
               LOGGER.fine("No portMappings found");
           }
+
+          LOGGER.info("Setting environment variable parameters for request memory, jvm optionts, jnlp secret and the jnlp url");
+          dockerInfoBuilder.addParameters(Parameter.newBuilder().setKey("env").setValue("REQUEST_MEMORY=" + request.request.mem));
+          dockerInfoBuilder.addParameters(Parameter.newBuilder().setKey("env").setValue("JVM_OPTIONS=" + request.request.slaveInfo.getJvmArgs()));
+          dockerInfoBuilder.addParameters(Parameter.newBuilder().setKey("env").setValue("JNLP_SECRET=" + getJnlpSecret(request.request.slave.name)));
+          dockerInfoBuilder.addParameters(Parameter.newBuilder().setKey("env").setValue("JNLP_URL=" + getJnlpUrl(request.request.slave.name)));
+          // JNLP ARGS?
 
           containerInfoBuilder.setDocker(dockerInfoBuilder);
           break;
